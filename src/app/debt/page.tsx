@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useCachedFetch } from "@/lib/data-cache";
 
 interface DecimalValue {
   value: string;
@@ -112,9 +113,7 @@ function SortHeader({
 }
 
 export default function DebtPage() {
-  const [rows, setRows] = useState<PairRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: poolsData, loading, error } = useCachedFetch<Pool[]>("pools", "/api/pools");
   const [sortKey, setSortKey] = useState<SortKey>("totalDebtUsd");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -122,59 +121,50 @@ export default function DebtPage() {
   const [poolFilter, setPoolFilter] = useState("all");
   const [assetFilter, setAssetFilter] = useState("all");
 
-  useEffect(() => {
-    fetch("/api/pools")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        const pools: Pool[] = json.data;
-        const result: PairRow[] = [];
+  const rows = useMemo(() => {
+    if (!poolsData) return [];
+    const result: PairRow[] = [];
 
-        for (const pool of pools) {
-          if (pool.isDeprecated) continue;
+    for (const pool of poolsData) {
+      if (pool.isDeprecated) continue;
 
-          const assetMap = new Map<string, Asset>();
-          for (const a of pool.assets) {
-            assetMap.set(a.address, a);
-          }
+      const assetMap = new Map<string, Asset>();
+      for (const a of pool.assets) {
+        assetMap.set(a.address, a);
+      }
 
-          for (const pair of pool.pairs) {
-            const collateral = assetMap.get(pair.collateralAssetAddress);
-            const debtAsset = assetMap.get(pair.debtAssetAddress);
-            if (!collateral || !debtAsset) continue;
+      for (const pair of pool.pairs) {
+        const collateral = assetMap.get(pair.collateralAssetAddress);
+        const debtAsset = assetMap.get(pair.debtAssetAddress);
+        if (!collateral || !debtAsset) continue;
 
-            const totalDebtNum = parseDecimal(pair.totalDebt);
-            const debtCapNum = parseDecimal(pair.debtCap);
-            const utilPct =
-              debtCapNum > 0 ? (totalDebtNum / debtCapNum) * 100 : 0;
-            const debtUsdPrice = debtAsset.usdPrice
-              ? parseDecimal(debtAsset.usdPrice)
-              : 0;
-            const totalDebtUsdNum = totalDebtNum * debtUsdPrice;
+        const totalDebtNum = parseDecimal(pair.totalDebt);
+        const debtCapNum = parseDecimal(pair.debtCap);
+        const utilPct =
+          debtCapNum > 0 ? (totalDebtNum / debtCapNum) * 100 : 0;
+        const debtUsdPrice = debtAsset.usdPrice
+          ? parseDecimal(debtAsset.usdPrice)
+          : 0;
+        const totalDebtUsdNum = totalDebtNum * debtUsdPrice;
 
-            result.push({
-              poolId: pool.id,
-              poolName: pool.name,
-              collateralSymbol: collateral.symbol,
-              debtSymbol: debtAsset.symbol,
-              totalDebt: formatDecimal(pair.totalDebt.value, pair.totalDebt.decimals, 2),
-              totalDebtUsdNum,
-              totalDebtUsd: formatUsdNum(totalDebtUsdNum),
-              debtCap: formatDecimal(pair.debtCap.value, pair.debtCap.decimals, 0),
-              debtCapNum,
-              utilization: utilPct,
-              maxLTV: parseDecimal(pair.maxLTV) * 100,
-            });
-          }
-        }
+        result.push({
+          poolId: pool.id,
+          poolName: pool.name,
+          collateralSymbol: collateral.symbol,
+          debtSymbol: debtAsset.symbol,
+          totalDebt: formatDecimal(pair.totalDebt.value, pair.totalDebt.decimals, 2),
+          totalDebtUsdNum,
+          totalDebtUsd: formatUsdNum(totalDebtUsdNum),
+          debtCap: formatDecimal(pair.debtCap.value, pair.debtCap.decimals, 0),
+          debtCapNum,
+          utilization: utilPct,
+          maxLTV: parseDecimal(pair.maxLTV) * 100,
+        });
+      }
+    }
 
-        setRows(result);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+    return result;
+  }, [poolsData]);
 
   const handleSort = useCallback(
     (key: SortKey) => {

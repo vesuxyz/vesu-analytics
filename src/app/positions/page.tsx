@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useCachedFetch } from "@/lib/data-cache";
 
 interface DecimalValue {
   value: string;
@@ -188,9 +189,7 @@ function mapPosition(p: RawPosition): PositionRow {
 }
 
 export default function PositionsPage() {
-  const [rows, setRows] = useState<PositionRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: rawPositions, loading, error } = useCachedFetch<RawPosition[]>("positions", "/api/positions");
   const [sortKey, setSortKey] = useState<SortKey>("collateralUsd");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -200,19 +199,7 @@ export default function PositionsPage() {
   const [assetFilter, setAssetFilter] = useState("all");
   const [userSearch, setUserSearch] = useState("");
 
-  useEffect(() => {
-    fetch("/api/positions")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        const positions: RawPosition[] = json.data;
-        setRows(positions.map(mapPosition));
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const rows = useMemo(() => (rawPositions ?? []).map(mapPosition), [rawPositions]);
 
   const handleSort = useCallback(
     (key: SortKey) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useCachedFetch } from "@/lib/data-cache";
 import {
   AreaChart,
   Area,
@@ -51,17 +52,13 @@ interface PairBreakdown {
   buckets: RiskBucket[];
 }
 
-interface LiquidityPoint {
-  sellUsd: number;
-  priceImpact: number;
-}
-
 interface TokenLiquidity {
   symbol: string;
-  points: LiquidityPoint[];
+  liq5: number;
+  liq10: number;
 }
 
-const PRICE_DROPS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80];
+const PRICE_DROPS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
 
 const STABLE_GROUPS: string[][] = [
   ["USDC", "USDC.e", "USDT", "sUSN", "rUSDC-stark", "mRe7YIELD"],
@@ -167,63 +164,59 @@ function formatUsdAxis(value: number): string {
   return `$${(value / 1_000_000).toFixed(1)}M`;
 }
 
-function interpolateVolume(points: LiquidityPoint[], targetImpact: number): number {
-  if (points.length === 0) return 0;
-  if (targetImpact <= points[0].priceImpact) return points[0].sellUsd;
-  if (targetImpact >= points[points.length - 1].priceImpact)
-    return points[points.length - 1].sellUsd;
-
-  for (let i = 1; i < points.length; i++) {
-    if (targetImpact <= points[i].priceImpact) {
-      const prev = points[i - 1];
-      const next = points[i];
-      const t =
-        (targetImpact - prev.priceImpact) /
-        (next.priceImpact - prev.priceImpact);
-      return prev.sellUsd + t * (next.sellUsd - prev.sellUsd);
-    }
-  }
-  return points[points.length - 1].sellUsd;
-}
-
 type RiskMetric = "debt" | "positions";
 
-// Combined chart: debt/positions at risk + DEX liquidity on the same axes
+// Combined chart: debt/positions at risk + liquidity lines at 5% and 10% impact
 function CombinedRiskChart({
   buckets,
   metric,
   liqData,
+  liqLoading,
   title,
-  color = "#ef4444",
 }: {
   buckets: RiskBucket[];
   metric: RiskMetric;
   liqData?: TokenLiquidity | null;
+  liqLoading?: boolean;
   title?: string;
-  color?: string;
 }) {
   const isUsd = metric === "debt";
+
+  const showLiq = isUsd && liqData !== undefined && liqData !== null;
+  const liq5 = liqData?.liq5 ?? 0;
+  const liq10 = liqData?.liq10 ?? 0;
+  const liqSymbol = liqData?.symbol ?? "";
+
+  const liq5Label = `${liqSymbol} liq @5%`;
+  const liq10Label = `${liqSymbol} liq @10%`;
 
   const chartData = buckets.map((b) => {
     const row: Record<string, number | string> = {
       drop: `-${b.dropPct}%`,
       risk: isUsd ? b.debtAtRiskUsd : b.positionsAtRisk,
     };
-    if (isUsd && liqData !== undefined) {
-      row.liquidity = liqData ? interpolateVolume(liqData.points, b.dropPct) : 0;
+    if (showLiq) {
+      row[liq5Label] = liq5;
+      row[liq10Label] = liq10;
     }
     return row;
   });
 
   const riskLabel = isUsd ? "Debt at Risk" : "Positions at Risk";
-  const liqLabel = liqData ? `${liqData.symbol} Liquidity` : "Liquidity";
-  const showLiq = isUsd && liqData !== undefined;
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
+    <div className="rounded-lg border border-gray-200 p-4 relative">
       <h4 className="text-sm font-medium text-gray-700 mb-4">
         {title ?? "Aggregate"}
       </h4>
+      {liqLoading && isUsd && (
+        <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10 rounded-lg">
+          <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -248,32 +241,40 @@ function CombinedRiskChart({
               fontSize: "13px",
             }}
             labelStyle={{ color: "#6b7280" }}
-            formatter={(value, name) => [
+            formatter={(value) => [
               isUsd ? formatUsd(Number(value)) : String(value),
-              name === "risk" ? riskLabel : liqLabel,
             ]}
           />
-          <Legend
-            formatter={(value) => (value === "risk" ? riskLabel : liqLabel)}
-            wrapperStyle={{ fontSize: "12px" }}
-          />
+          <Legend wrapperStyle={{ fontSize: "11px" }} />
           <Area
             type="monotone"
             dataKey="risk"
-            stroke={color}
-            fill={color}
+            name={riskLabel}
+            stroke="#ef4444"
+            fill="#ef4444"
             fillOpacity={0.15}
             strokeWidth={2}
           />
           {showLiq && (
             <Area
               type="monotone"
-              dataKey="liquidity"
+              dataKey={liq5Label}
               stroke="#22c55e"
-              fill="#22c55e"
-              fillOpacity={0.1}
-              strokeWidth={2}
-              strokeDasharray="5 3"
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray="6 3"
+              dot={false}
+            />
+          )}
+          {showLiq && (
+            <Area
+              type="monotone"
+              dataKey={liq10Label}
+              stroke="#0ea5e9"
+              fill="none"
+              strokeWidth={1.5}
+              strokeDasharray="6 3"
+              dot={false}
             />
           )}
         </AreaChart>
@@ -282,136 +283,97 @@ function CombinedRiskChart({
   );
 }
 
-// Aggregate liquidity chart with all tokens overlaid
-function AggregateLiquidityChart({ data }: { data: TokenLiquidity[] }) {
-  const chartData = PRICE_DROPS.map((dropPct) => {
-    const row: Record<string, number | string> = {
-      drop: `-${dropPct}%`,
-    };
-    for (const t of data) {
-      row[t.symbol] = interpolateVolume(t.points, dropPct);
-    }
-    return row;
-  });
+const VISIBLE_LIQ_ROWS = 6;
 
-  const TOKEN_COLORS: Record<string, string> = {
-    ETH: "#627eea",
-    WBTC: "#f7931a",
-    STRK: "#ec796b",
-  };
-
+function LiquidityTable({ rows, compact }: { rows: TokenLiquidity[]; compact?: boolean }) {
+  const display = compact ? rows.slice(0, VISIBLE_LIQ_ROWS) : rows;
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <h4 className="text-sm font-medium text-gray-700 mb-4">
-        DEX Liquidity (sell volume at price impact)
-      </h4>
-      <ResponsiveContainer width="100%" height={220}>
-        <AreaChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis
-            dataKey="drop"
-            tick={{ fill: "#6b7280", fontSize: 12 }}
-            axisLine={{ stroke: "#d1d5db" }}
-            tickLine={{ stroke: "#d1d5db" }}
-          />
-          <YAxis
-            tickFormatter={formatUsdAxis}
-            tick={{ fill: "#6b7280", fontSize: 12 }}
-            axisLine={{ stroke: "#d1d5db" }}
-            tickLine={{ stroke: "#d1d5db" }}
-            width={70}
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e5e7eb",
-              borderRadius: "8px",
-              fontSize: "13px",
-            }}
-            labelStyle={{ color: "#6b7280" }}
-            labelFormatter={(label) => `Price impact: ${label}`}
-            formatter={(value, name) => [formatUsd(Number(value)), String(name)]}
-          />
-          <Legend wrapperStyle={{ fontSize: "12px" }} />
-          {data.map((t) => (
-            <Area
-              key={t.symbol}
-              type="monotone"
-              dataKey={t.symbol}
-              stroke={TOKEN_COLORS[t.symbol] ?? "#6b7280"}
-              fill={TOKEN_COLORS[t.symbol] ?? "#6b7280"}
-              fillOpacity={0.1}
-              strokeWidth={2}
-            />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="bg-gray-50 border-b border-gray-200">
+          <th className="text-left p-2 font-medium text-gray-700">Asset</th>
+          <th className="text-right p-2 font-medium text-gray-700">Liq. @5%</th>
+          <th className="text-right p-2 font-medium text-gray-700">Liq. @10%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {display.map((t, i) => (
+          <tr key={t.symbol} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+            <td className="p-2 font-medium text-gray-900 text-sm">{t.symbol}</td>
+            <td className="p-2 text-right font-mono text-gray-700 text-sm">{formatUsd(t.liq5)}</td>
+            <td className="p-2 text-right font-mono text-gray-700 text-sm">{formatUsd(t.liq10)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
-const COLLATERAL_COLORS: Record<string, string> = {
-  ETH: "#627eea",
-  wstETH: "#00a3ff",
-  STRK: "#ec796b",
-  sSTRK: "#ec796b",
-  xSTRK: "#ec796b",
-  WBTC: "#f7931a",
-  LBTC: "#f7931a",
-  tBTC: "#f7931a",
-  SolvBTC: "#f7931a",
-  USDC: "#2775ca",
-  "USDC.e": "#2775ca",
-  USDT: "#26a17b",
-  EKUBO: "#a855f7",
-};
+function AggregateLiquidityTable({ data }: { data: TokenLiquidity[] }) {
+  const [showModal, setShowModal] = useState(false);
+  const sorted = [...data].filter((t) => t.liq5 > 0 || t.liq10 > 0).sort((a, b) => b.liq10 - a.liq10);
+
+  return (
+    <>
+      <div className="rounded-lg border border-gray-200 overflow-hidden flex flex-col">
+        <h4 className="text-sm font-medium text-gray-700 px-3 py-2 bg-gray-50 border-b border-gray-200">
+          DEX Liquidity by Asset
+        </h4>
+        <LiquidityTable rows={sorted} compact />
+        {sorted.length > VISIBLE_LIQ_ROWS && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-xs text-[#2C41F6] hover:text-[#1f2fdb] py-2 border-t border-gray-100"
+          >
+            Show all {sorted.length} assets
+          </button>
+        )}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-lg border border-gray-200 shadow-lg max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+              <h4 className="text-sm font-semibold text-gray-900">DEX Liquidity by Asset</h4>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+            </div>
+            <div className="overflow-y-auto">
+              <LiquidityTable rows={sorted} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function RiskPage() {
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [liquidity, setLiquidity] = useState<TokenLiquidity[]>([]);
+  const { data: positions, loading, error } = useCachedFetch<Position[]>("positions", "/api/positions");
+  const { data: liquidityData, loading: liqLoading } = useCachedFetch<TokenLiquidity[]>("liquidity", "/api/liquidity");
+  const liquidity = liquidityData ?? [];
   const [includeStable, setIncludeStable] = useState(false);
   const [riskMetric, setRiskMetric] = useState<RiskMetric>("debt");
   const [assetFilter, setAssetFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/positions")
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((json) => setPositions(json.data)),
-      fetch("/api/liquidity")
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((json) => setLiquidity(json.data))
-        .catch(() => {}),
-    ])
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   const liquidityMap = new Map<string, TokenLiquidity>();
   for (const t of liquidity) {
     liquidityMap.set(t.symbol, t);
   }
 
+  const positionsList = positions ?? [];
+
   const assets = useMemo(() => {
     const s = new Set<string>();
-    for (const p of positions) {
+    for (const p of positionsList) {
       if (p.collateral) s.add(p.collateral.symbol);
       if (p.debt) s.add(p.debt.symbol);
     }
     return Array.from(s).sort();
-  }, [positions]);
+  }, [positionsList]);
 
   const filteredPositions = useMemo(() => {
-    if (assetFilter === "all") return positions;
-    return positions.filter(
+    if (assetFilter === "all") return positionsList;
+    return positionsList.filter(
       (p) =>
         p.collateral?.symbol === assetFilter || p.debt?.symbol === assetFilter
     );
@@ -431,7 +393,7 @@ export default function RiskPage() {
               price drops
               {!loading && (
                 <span className="text-gray-400">
-                  {" "}&middot; {positions.length} positions analyzed
+                  {" "}&middot; {positionsList.length} positions analyzed
                 </span>
               )}
             </p>
@@ -516,12 +478,16 @@ export default function RiskPage() {
                   metric={riskMetric}
                 />
                 {liquidity.length > 0 ? (
-                  <AggregateLiquidityChart data={liquidity} />
-                ) : (
-                  <div className="rounded-lg border border-gray-200 p-4 h-[284px] flex items-center justify-center text-gray-400 text-sm">
-                    Loading liquidity data...
+                  <AggregateLiquidityTable data={liquidity} />
+                ) : liqLoading ? (
+                  <div className="rounded-lg border border-gray-200 p-4 h-[284px] flex flex-col items-center justify-center gap-3 text-gray-400 text-sm">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Loading DEX liquidity data...
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -540,7 +506,6 @@ export default function RiskPage() {
                       ...byPair[i - 1].pair.split("/") as [string, string]
                     );
                   const liqData = liquidityMap.get(collateralSymbol);
-                  const pairColor = COLLATERAL_COLORS[collateralSymbol] ?? "#6b7280";
 
                   return (
                     <div key={c.pair} className={stable && !prevStable ? "col-span-full contents" : "contents"}>
@@ -557,8 +522,8 @@ export default function RiskPage() {
                         buckets={c.buckets}
                         metric={riskMetric}
                         liqData={liqData ?? null}
+                        liqLoading={liqLoading}
                         title={c.pair}
-                        color={pairColor}
                       />
                     </div>
                   );

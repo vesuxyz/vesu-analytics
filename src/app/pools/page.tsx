@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useCachedFetch } from "@/lib/data-cache";
 
 interface DecimalValue {
   value: string;
@@ -572,47 +573,36 @@ function PairsTable({ pairs, poolAddress, unscaled }: { pairs: PairParams[]; poo
 }
 
 export default function PoolsPage() {
-  const [pools, setPools] = useState<Pool[]>([]);
+  const { data: poolsData, loading, error } = useCachedFetch<Pool[]>("pools", "/api/pools");
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
   const [poolParams, setPoolParams] = useState<PoolParamsData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [paramsLoading, setParamsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [paramsError, setParamsError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/pools")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((json) => {
-        const allPools: Pool[] = json.data;
-        const filtered = allPools
-          .filter((p) => p.protocolVersion === "v2" && !p.isDeprecated)
-          .sort((a, b) => {
-            const tvlA = a.assets.reduce(
-              (s, asset) =>
-                s + parseDecimal(asset.stats.totalSupplied) * parseDecimal(asset.usdPrice),
-              0
-            );
-            const tvlB = b.assets.reduce(
-              (s, asset) =>
-                s + parseDecimal(asset.stats.totalSupplied) * parseDecimal(asset.usdPrice),
-              0
-            );
-            return tvlB - tvlA;
-          });
-        setPools(filtered);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+  const pools = useMemo(() => {
+    if (!poolsData) return [];
+    return poolsData
+      .filter((p) => p.protocolVersion === "v2" && !p.isDeprecated)
+      .sort((a, b) => {
+        const tvlA = a.assets.reduce(
+          (s, asset) =>
+            s + parseDecimal(asset.stats.totalSupplied) * parseDecimal(asset.usdPrice),
+          0
+        );
+        const tvlB = b.assets.reduce(
+          (s, asset) =>
+            s + parseDecimal(asset.stats.totalSupplied) * parseDecimal(asset.usdPrice),
+          0
+        );
+        return tvlB - tvlA;
+      });
+  }, [poolsData]);
 
   const selectPool = useCallback((pool: Pool) => {
     setSelectedPool(pool);
     setPoolParams(null);
     setParamsLoading(true);
-    setError(null);
+    setParamsError(null);
 
     fetch(`/api/pool-params?poolId=${pool.id}`)
       .then((r) => {
@@ -651,7 +641,7 @@ export default function PoolsPage() {
 
         setPoolParams({ general: raw.general, assets, pairs });
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setParamsError(err.message))
       .finally(() => setParamsLoading(false));
   }, []);
 
@@ -694,9 +684,9 @@ export default function PoolsPage() {
 
         {selectedPool && (
           <>
-            {error && (
+            {paramsError && (
               <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700 mb-4">
-                Error: {error}
+                Error: {paramsError}
               </div>
             )}
             <PoolDetail
@@ -706,7 +696,7 @@ export default function PoolsPage() {
               onBack={() => {
                 setSelectedPool(null);
                 setPoolParams(null);
-                setError(null);
+                setParamsError(null);
               }}
             />
           </>
