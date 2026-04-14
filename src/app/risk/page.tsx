@@ -61,7 +61,7 @@ interface TokenLiquidity {
   points: LiquidityPoint[];
 }
 
-const PRICE_DROPS = [1, 5, 10, 15, 20, 25, 30, 40, 50];
+const PRICE_DROPS = [1, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80];
 
 const STABLE_GROUPS: string[][] = [
   ["USDC", "USDC.e", "USDT", "sUSN", "rUSDC-stark", "mRe7YIELD"],
@@ -209,15 +209,15 @@ function CombinedRiskChart({
       drop: `-${b.dropPct}%`,
       risk: isUsd ? b.debtAtRiskUsd : b.positionsAtRisk,
     };
-    if (liqData && isUsd) {
-      row.liquidity = interpolateVolume(liqData.points, b.dropPct);
+    if (isUsd) {
+      row.liquidity = liqData ? interpolateVolume(liqData.points, b.dropPct) : 0;
     }
     return row;
   });
 
   const riskLabel = isUsd ? "Debt at Risk" : "Positions at Risk";
   const liqLabel = liqData ? `${liqData.symbol} Liquidity` : "Liquidity";
-  const showLiq = liqData && isUsd;
+  const showLiq = isUsd;
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
