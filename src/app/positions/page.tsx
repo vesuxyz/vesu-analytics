@@ -10,18 +10,37 @@ interface DecimalValue {
 interface RawPosition {
   id: string;
   type: string;
-  pool: { id: string; name: string };
+  pool?: { id: string; name: string };
   walletAddress: string;
-  ltv: { max: DecimalValue; current: DecimalValue };
-  healthFactor: DecimalValue | null;
-  collateral: {
+  ltv?: { max: DecimalValue; current: DecimalValue };
+  healthFactor?: DecimalValue | null;
+  collateral?: {
     symbol: string;
     address: string;
     decimals: number;
     value: string;
     usdPrice: DecimalValue;
   };
-  debt: {
+  debt?: {
+    symbol: string;
+    address: string;
+    decimals: number;
+    value: string;
+    usdPrice: DecimalValue;
+  };
+  // earn positions
+  collateralShares?: {
+    symbol: string;
+    decimals: number;
+    value: string;
+  };
+  // vault positions
+  shares?: {
+    symbol: string;
+    decimals: number;
+    value: string;
+  };
+  assets?: {
     symbol: string;
     address: string;
     decimals: number;
@@ -113,13 +132,73 @@ function SortHeader({
   );
 }
 
+function typeBadgeClass(type: string): string {
+  switch (type) {
+    case "multiply": return "bg-purple-900/40 text-purple-300";
+    case "earn": return "bg-green-900/40 text-green-300";
+    case "vault": return "bg-amber-900/40 text-amber-300";
+    default: return "bg-blue-900/40 text-blue-300";
+  }
+}
+
+function mapPosition(p: RawPosition): PositionRow {
+  if (p.type === "vault") {
+    const assetUsd = p.assets?.usdPrice ? parseDecimal(p.assets.usdPrice) : 0;
+    return {
+      id: p.id,
+      pool: "-",
+      poolId: "",
+      type: p.type,
+      wallet: p.walletAddress,
+      collateralSymbol: p.assets?.symbol ?? "-",
+      debtSymbol: "-",
+      collateralAmount: p.assets ? formatAmount(p.assets.value, p.assets.decimals) : "0",
+      collateralUsd: assetUsd,
+      collateralUsdFmt: formatUsd(assetUsd),
+      debtAmount: "-",
+      debtUsd: 0,
+      debtUsdFmt: "-",
+      healthFactor: "-",
+      healthFactorNum: Infinity,
+    };
+  }
+
+  // borrow, multiply, earn — all have collateral
+  const collUsd = p.collateral?.usdPrice ? parseDecimal(p.collateral.usdPrice) : 0;
+  const debtUsd = p.debt?.usdPrice ? parseDecimal(p.debt.usdPrice) : 0;
+  const hf = p.healthFactor ? parseDecimal(p.healthFactor) : null;
+
+  return {
+    id: p.id,
+    pool: p.pool?.name ?? "-",
+    poolId: p.pool?.id ?? "",
+    type: p.type,
+    wallet: p.walletAddress,
+    collateralSymbol: p.collateral?.symbol ?? "-",
+    debtSymbol: p.debt?.symbol ?? "-",
+    collateralAmount: p.collateral ? formatAmount(p.collateral.value, p.collateral.decimals) : "0",
+    collateralUsd: collUsd,
+    collateralUsdFmt: formatUsd(collUsd),
+    debtAmount: p.debt ? formatAmount(p.debt.value, p.debt.decimals) : "-",
+    debtUsd: debtUsd,
+    debtUsdFmt: debtUsd > 0 ? formatUsd(debtUsd) : "-",
+    healthFactor: hf !== null ? hf.toFixed(2) : "-",
+    healthFactorNum: hf ?? Infinity,
+  };
+}
+
 export default function PositionsPage() {
   const [rows, setRows] = useState<PositionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("collateralUsd");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // Filters
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [poolFilter, setPoolFilter] = useState("all");
+  const [assetFilter, setAssetFilter] = useState("all");
+  const [userSearch, setUserSearch] = useState("");
 
   useEffect(() => {
     fetch("/api/positions")
@@ -129,30 +208,7 @@ export default function PositionsPage() {
       })
       .then((json) => {
         const positions: RawPosition[] = json.data;
-        const mapped: PositionRow[] = positions.map((p) => {
-          const collUsd = parseDecimal(p.collateral.usdPrice);
-          const debtUsd = parseDecimal(p.debt.usdPrice);
-          const hf = p.healthFactor ? parseDecimal(p.healthFactor) : null;
-
-          return {
-            id: p.id,
-            pool: p.pool.name,
-            poolId: p.pool.id,
-            type: p.type,
-            wallet: p.walletAddress,
-            collateralSymbol: p.collateral.symbol,
-            debtSymbol: p.debt.symbol,
-            collateralAmount: formatAmount(p.collateral.value, p.collateral.decimals),
-            collateralUsd: collUsd,
-            collateralUsdFmt: formatUsd(collUsd),
-            debtAmount: formatAmount(p.debt.value, p.debt.decimals),
-            debtUsd: debtUsd,
-            debtUsdFmt: formatUsd(debtUsd),
-            healthFactor: hf !== null ? hf.toFixed(2) : "-",
-            healthFactorNum: hf ?? Infinity,
-          };
-        });
-        setRows(mapped);
+        setRows(positions.map(mapPosition));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -175,11 +231,41 @@ export default function PositionsPage() {
     return Array.from(s).sort();
   }, [rows]);
 
-  const sorted = useMemo(() => {
-    const filtered =
-      typeFilter === "all" ? [...rows] : rows.filter((r) => r.type === typeFilter);
+  const pools = useMemo(() => {
+    const s = new Set(rows.map((r) => r.pool).filter((p) => p !== "-"));
+    return Array.from(s).sort();
+  }, [rows]);
 
-    filtered.sort((a, b) => {
+  const assets = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      if (r.collateralSymbol !== "-") s.add(r.collateralSymbol);
+      if (r.debtSymbol !== "-") s.add(r.debtSymbol);
+    }
+    return Array.from(s).sort();
+  }, [rows]);
+
+  const sorted = useMemo(() => {
+    let filtered = rows;
+
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((r) => r.type === typeFilter);
+    }
+    if (poolFilter !== "all") {
+      filtered = filtered.filter((r) => r.pool === poolFilter);
+    }
+    if (assetFilter !== "all") {
+      filtered = filtered.filter(
+        (r) => r.collateralSymbol === assetFilter || r.debtSymbol === assetFilter
+      );
+    }
+    if (userSearch) {
+      const q = userSearch.toLowerCase();
+      filtered = filtered.filter((r) => r.wallet.toLowerCase().includes(q));
+    }
+
+    const copy = [...filtered];
+    copy.sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
         case "pool":
@@ -206,8 +292,8 @@ export default function PositionsPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
 
-    return filtered;
-  }, [rows, typeFilter, sortKey, sortDir]);
+    return copy;
+  }, [rows, typeFilter, poolFilter, assetFilter, userSearch, sortKey, sortDir]);
 
   return (
     <div className="p-8">
@@ -216,7 +302,7 @@ export default function PositionsPage() {
           <div>
             <h2 className="text-xl font-bold mb-1">Positions</h2>
             <p className="text-zinc-400 text-sm">
-              All open borrow and multiply positions
+              All open positions
               {!loading && (
                 <span className="text-zinc-500">
                   {" "}&middot; {sorted.length} of {rows.length} positions
@@ -224,22 +310,50 @@ export default function PositionsPage() {
               )}
             </p>
           </div>
-          {types.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-zinc-400">Type:</span>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="all">All</option>
-                {types.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
+
+        {/* Filters */}
+        {!loading && !error && (
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All types</option>
+              {types.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <select
+              value={poolFilter}
+              onChange={(e) => setPoolFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All pools</option>
+              {pools.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              value={assetFilter}
+              onChange={(e) => setAssetFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All assets</option>
+              {assets.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Search user address..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
+            />
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center gap-3 text-zinc-400">
@@ -274,7 +388,7 @@ export default function PositionsPage() {
               <tbody>
                 {sorted.map((row, i) => (
                   <tr
-                    key={row.id}
+                    key={`${row.id}-${i}`}
                     className={`border-b border-zinc-800/50 hover:bg-zinc-900/50 ${
                       i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/20"
                     }`}
@@ -283,16 +397,24 @@ export default function PositionsPage() {
                       {row.pool}
                     </td>
                     <td className="p-3">
-                      <a
-                        href={`https://vesu.xyz/lend/${row.poolId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
-                      >
+                      {row.poolId ? (
+                        <a
+                          href={`https://vesu.xyz/lend/${row.poolId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          <span className="text-zinc-200">{row.collateralSymbol}</span>
+                          {row.debtSymbol !== "-" && (
+                            <>
+                              <span className="text-zinc-500 mx-1">/</span>
+                              <span className="text-zinc-300">{row.debtSymbol}</span>
+                            </>
+                          )}
+                        </a>
+                      ) : (
                         <span className="text-zinc-200">{row.collateralSymbol}</span>
-                        <span className="text-zinc-500 mx-1">/</span>
-                        <span className="text-zinc-300">{row.debtSymbol}</span>
-                      </a>
+                      )}
                     </td>
                     <td className="p-3 font-mono text-xs">
                       <a
@@ -306,11 +428,7 @@ export default function PositionsPage() {
                     </td>
                     <td className="p-3">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          row.type === "multiply"
-                            ? "bg-purple-900/40 text-purple-300"
-                            : "bg-blue-900/40 text-blue-300"
-                        }`}
+                        className={`px-2 py-0.5 rounded text-xs font-medium ${typeBadgeClass(row.type)}`}
                       >
                         {row.type}
                       </span>
@@ -322,10 +440,16 @@ export default function PositionsPage() {
                       </div>
                     </td>
                     <td className="text-right p-3 font-mono text-zinc-300">
-                      <div>{row.debtUsdFmt}</div>
-                      <div className="text-xs text-zinc-500">
-                        {row.debtAmount} {row.debtSymbol}
-                      </div>
+                      {row.debtUsdFmt !== "-" ? (
+                        <>
+                          <div>{row.debtUsdFmt}</div>
+                          <div className="text-xs text-zinc-500">
+                            {row.debtAmount} {row.debtSymbol}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-zinc-500">-</span>
+                      )}
                     </td>
                     <td className="text-right p-3 font-mono">
                       <span

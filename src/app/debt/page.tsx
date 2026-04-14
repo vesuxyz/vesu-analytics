@@ -118,6 +118,10 @@ export default function DebtPage() {
   const [sortKey, setSortKey] = useState<SortKey>("totalDebtUsd");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  // Filters
+  const [poolFilter, setPoolFilter] = useState("all");
+  const [assetFilter, setAssetFilter] = useState("all");
+
   useEffect(() => {
     fetch("/api/pools")
       .then((r) => {
@@ -184,8 +188,33 @@ export default function DebtPage() {
     [sortKey]
   );
 
+  const pools = useMemo(() => {
+    const s = new Set(rows.map((r) => r.poolName));
+    return Array.from(s).sort();
+  }, [rows]);
+
+  const assets = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rows) {
+      s.add(r.collateralSymbol);
+      s.add(r.debtSymbol);
+    }
+    return Array.from(s).sort();
+  }, [rows]);
+
   const sorted = useMemo(() => {
-    const copy = [...rows];
+    let filtered = rows;
+
+    if (poolFilter !== "all") {
+      filtered = filtered.filter((r) => r.poolName === poolFilter);
+    }
+    if (assetFilter !== "all") {
+      filtered = filtered.filter(
+        (r) => r.collateralSymbol === assetFilter || r.debtSymbol === assetFilter
+      );
+    }
+
+    const copy = [...filtered];
     copy.sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
@@ -213,7 +242,7 @@ export default function DebtPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [rows, sortKey, sortDir]);
+  }, [rows, poolFilter, assetFilter, sortKey, sortDir]);
 
   return (
     <div className="p-8">
@@ -222,8 +251,39 @@ export default function DebtPage() {
           <h2 className="text-xl font-bold mb-1">Debt & Caps</h2>
           <p className="text-zinc-400 text-sm">
             Total debt and debt caps per lending pair across active Vesu pools
+            {!loading && (
+              <span className="text-zinc-500">
+                {" "}&middot; {sorted.length} of {rows.length} pairs
+              </span>
+            )}
           </p>
         </div>
+
+        {/* Filters */}
+        {!loading && !error && (
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <select
+              value={poolFilter}
+              onChange={(e) => setPoolFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All pools</option>
+              {pools.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              value={assetFilter}
+              onChange={(e) => setAssetFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All assets</option>
+              {assets.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center gap-3 text-zinc-400">

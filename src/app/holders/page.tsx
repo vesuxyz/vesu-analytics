@@ -78,6 +78,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("STRK");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [labelFilter, setLabelFilter] = useState("all");
   const [tokenProgress, setTokenProgress] = useState<
     Record<string, TokenProgress>
   >(() => {
@@ -175,9 +177,32 @@ export default function Home() {
     [sortKey]
   );
 
+  const labelOptions = useMemo(() => {
+    if (!data) return [];
+    const s = new Set<string>();
+    for (const h of data.holders) {
+      if (h.label) s.add(h.label);
+    }
+    return Array.from(s).sort();
+  }, [data]);
+
   const sortedHolders = useMemo(() => {
     if (!data) return [];
-    const copy = [...data.holders];
+    let filtered = data.holders;
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (h) =>
+          h.address.toLowerCase().includes(q) ||
+          (h.label && h.label.toLowerCase().includes(q))
+      );
+    }
+    if (labelFilter !== "all") {
+      filtered = filtered.filter((h) => h.label === labelFilter);
+    }
+
+    const copy = [...filtered];
     copy.sort((a, b) => {
       let cmp = 0;
       if (sortKey === "label") {
@@ -190,7 +215,7 @@ export default function Home() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [data, sortKey, sortDir]);
+  }, [data, searchQuery, labelFilter, sortKey, sortDir]);
 
   const progressValues = Object.values(tokenProgress);
   const doneCount = progressValues.filter((t) => t.status === "done").length;
@@ -225,6 +250,34 @@ export default function Home() {
             </button>
           )}
         </div>
+
+        {/* Filters */}
+        {data && (
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <select
+              value={labelFilter}
+              onChange={(e) => setLabelFilter(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="all">All labels</option>
+              {labelOptions.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Search address or label..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64"
+            />
+            {(searchQuery || labelFilter !== "all") && (
+              <span className="text-xs text-zinc-500">
+                {sortedHolders.length} of {data.holders.length} holders
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Progress panel */}
         {loading && (
