@@ -220,34 +220,34 @@ function CombinedRiskChart({
   const showLiq = liqData && isUsd;
 
   return (
-    <div className="rounded-lg border border-zinc-800 p-4">
-      <h4 className="text-sm font-medium text-zinc-300 mb-4">
+    <div className="rounded-lg border border-gray-200 p-4">
+      <h4 className="text-sm font-medium text-gray-700 mb-4">
         {title ?? "Aggregate"}
       </h4>
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="drop"
-            tick={{ fill: "#a1a1aa", fontSize: 12 }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={{ stroke: "#3f3f46" }}
+            tick={{ fill: "#6b7280", fontSize: 12 }}
+            axisLine={{ stroke: "#d1d5db" }}
+            tickLine={{ stroke: "#d1d5db" }}
           />
           <YAxis
             tickFormatter={isUsd ? formatUsdAxis : undefined}
-            tick={{ fill: "#a1a1aa", fontSize: 12 }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={{ stroke: "#3f3f46" }}
+            tick={{ fill: "#6b7280", fontSize: 12 }}
+            axisLine={{ stroke: "#d1d5db" }}
+            tickLine={{ stroke: "#d1d5db" }}
             width={isUsd ? 70 : 50}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid #3f3f46",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
               fontSize: "13px",
             }}
-            labelStyle={{ color: "#a1a1aa" }}
+            labelStyle={{ color: "#6b7280" }}
             formatter={(value, name) => [
               isUsd ? formatUsd(Number(value)) : String(value),
               name === "risk" ? riskLabel : liqLabel,
@@ -301,34 +301,34 @@ function AggregateLiquidityChart({ data }: { data: TokenLiquidity[] }) {
   };
 
   return (
-    <div className="rounded-lg border border-zinc-800 p-4">
-      <h4 className="text-sm font-medium text-zinc-300 mb-4">
+    <div className="rounded-lg border border-gray-200 p-4">
+      <h4 className="text-sm font-medium text-gray-700 mb-4">
         DEX Liquidity (sell volume at price impact)
       </h4>
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="drop"
-            tick={{ fill: "#a1a1aa", fontSize: 12 }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={{ stroke: "#3f3f46" }}
+            tick={{ fill: "#6b7280", fontSize: 12 }}
+            axisLine={{ stroke: "#d1d5db" }}
+            tickLine={{ stroke: "#d1d5db" }}
           />
           <YAxis
             tickFormatter={formatUsdAxis}
-            tick={{ fill: "#a1a1aa", fontSize: 12 }}
-            axisLine={{ stroke: "#3f3f46" }}
-            tickLine={{ stroke: "#3f3f46" }}
+            tick={{ fill: "#6b7280", fontSize: 12 }}
+            axisLine={{ stroke: "#d1d5db" }}
+            tickLine={{ stroke: "#d1d5db" }}
             width={70}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid #3f3f46",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
               borderRadius: "8px",
               fontSize: "13px",
             }}
-            labelStyle={{ color: "#a1a1aa" }}
+            labelStyle={{ color: "#6b7280" }}
             labelFormatter={(label) => `Price impact: ${label}`}
             formatter={(value, name) => [formatUsd(Number(value)), String(name)]}
           />
@@ -426,11 +426,11 @@ export default function RiskPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold mb-1">Risk Analysis</h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-gray-500 text-sm">
               Debt and positions at risk of liquidation for various collateral
               price drops
               {!loading && (
-                <span className="text-zinc-500">
+                <span className="text-gray-400">
                   {" "}&middot; {positions.length} positions analyzed
                 </span>
               )}
@@ -439,7 +439,7 @@ export default function RiskPage() {
         </div>
 
         {loading && (
-          <div className="flex items-center gap-3 text-zinc-400">
+          <div className="flex items-center gap-3 text-gray-500">
             <svg
               className="animate-spin h-5 w-5"
               viewBox="0 0 24 24"
@@ -453,7 +453,7 @@ export default function RiskPage() {
         )}
 
         {error && (
-          <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 text-red-300">
+          <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700">
             Error: {error}
           </div>
         )}
@@ -463,14 +463,14 @@ export default function RiskPage() {
             {/* Aggregate section */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-zinc-200">
+                <h3 className="text-lg font-medium text-gray-900">
                   Aggregate
                 </h3>
                 <div className="flex items-center gap-4">
                   <select
                     value={assetFilter}
                     onChange={(e) => setAssetFilter(e.target.value)}
-                    className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="all">All assets</option>
                     {assets.map((a) => (
@@ -482,8 +482,8 @@ export default function RiskPage() {
                       onClick={() => setRiskMetric("debt")}
                       className={`px-3 py-1 text-xs rounded-md transition-colors ${
                         riskMetric === "debt"
-                          ? "bg-zinc-700 text-zinc-100"
-                          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                          ? "bg-[#2C41F6] text-white"
+                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                       }`}
                     >
                       Debt at Risk
@@ -492,19 +492,19 @@ export default function RiskPage() {
                       onClick={() => setRiskMetric("positions")}
                       className={`px-3 py-1 text-xs rounded-md transition-colors ${
                         riskMetric === "positions"
-                          ? "bg-zinc-700 text-zinc-100"
-                          : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                          ? "bg-[#2C41F6] text-white"
+                          : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                       }`}
                     >
                       Positions at Risk
                     </button>
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer select-none">
+                  <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={includeStable}
                       onChange={(e) => setIncludeStable(e.target.checked)}
-                      className="rounded border-zinc-600 bg-zinc-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                      className="rounded border-gray-300 bg-gray-100 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
                     />
                     Include stable pairs
                   </label>
@@ -518,7 +518,7 @@ export default function RiskPage() {
                 {liquidity.length > 0 ? (
                   <AggregateLiquidityChart data={liquidity} />
                 ) : (
-                  <div className="rounded-lg border border-zinc-800 p-4 h-[284px] flex items-center justify-center text-zinc-500 text-sm">
+                  <div className="rounded-lg border border-gray-200 p-4 h-[284px] flex items-center justify-center text-gray-400 text-sm">
                     Loading liquidity data...
                   </div>
                 )}
@@ -527,7 +527,7 @@ export default function RiskPage() {
 
             {/* Per-pair charts in 2-column grid */}
             <div>
-              <h3 className="text-lg font-medium mb-4 text-zinc-200">
+              <h3 className="text-lg font-medium mb-4 text-gray-900">
                 By Lending Pair
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -546,11 +546,11 @@ export default function RiskPage() {
                     <div key={c.pair} className={stable && !prevStable ? "col-span-full contents" : "contents"}>
                       {stable && !prevStable && (
                         <div className="col-span-full flex items-center gap-3 my-2">
-                          <div className="h-px flex-1 bg-zinc-800" />
-                          <span className="text-xs text-zinc-500 uppercase tracking-wider">
+                          <div className="h-px flex-1 bg-gray-200" />
+                          <span className="text-xs text-gray-400 uppercase tracking-wider">
                             Stable Pairs
                           </span>
-                          <div className="h-px flex-1 bg-zinc-800" />
+                          <div className="h-px flex-1 bg-gray-200" />
                         </div>
                       )}
                       <CombinedRiskChart

@@ -59,7 +59,7 @@ function SortHeader({
   const active = currentKey === sortKey;
   return (
     <th
-      className={`p-3 font-medium text-zinc-300 cursor-pointer select-none hover:text-zinc-100 min-w-[130px] ${
+      className={`p-3 font-medium text-gray-700 cursor-pointer select-none hover:text-gray-900 min-w-[130px] ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}
@@ -230,10 +230,10 @@ export default function Home() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold mb-1">Top Holders</h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-gray-500 text-sm">
               Discovered by scanning on-chain Transfer events
               {data && (
-                <span className="text-zinc-500">
+                <span className="text-gray-400">
                   {" "}
                   &middot; {new Date(data.timestamp).toLocaleString()}
                 </span>
@@ -244,7 +244,7 @@ export default function Home() {
             <button
               onClick={load}
               disabled={loading}
-              className="px-4 py-2 text-sm rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors disabled:opacity-50"
             >
               Refresh
             </button>
@@ -257,7 +257,7 @@ export default function Home() {
             <select
               value={labelFilter}
               onChange={(e) => setLabelFilter(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="all">All labels</option>
               {labelOptions.map((l) => (
@@ -269,10 +269,10 @@ export default function Home() {
               placeholder="Search address or label..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64"
+              className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 w-64"
             />
             {(searchQuery || labelFilter !== "all") && (
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-gray-400">
                 {sortedHolders.length} of {data.holders.length} holders
               </span>
             )}
@@ -281,10 +281,10 @@ export default function Home() {
 
         {/* Progress panel */}
         {loading && (
-          <div className="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/50 p-5">
+          <div className="mb-8 rounded-lg border border-gray-200 bg-white p-5">
             {/* Overall progress bar */}
             <div className="mb-4">
-              <div className="flex justify-between text-sm text-zinc-400 mb-2">
+              <div className="flex justify-between text-sm text-gray-500 mb-2">
                 <span>
                   {allScanned
                     ? balanceProgress
@@ -298,7 +298,7 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all duration-300"
                   style={{
@@ -324,15 +324,15 @@ export default function Home() {
                     key={symbol}
                     className={`rounded-md border px-3 py-2 text-center text-xs transition-colors ${
                       tp.status === "done"
-                        ? "border-green-800/50 bg-green-900/20 text-green-400"
+                        ? "border-green-300 bg-green-50 text-green-700"
                         : tp.status === "scanning"
-                        ? "border-blue-800/50 bg-blue-900/20 text-blue-400"
-                        : "border-zinc-800 bg-zinc-900/30 text-zinc-500"
+                        ? "border-blue-300 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-gray-50 text-gray-400"
                     }`}
                   >
                     <div className="font-medium mb-1">{symbol}</div>
                     {tp.status !== "pending" && (
-                      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden mb-1">
+                      <div className="h-1 bg-gray-200 rounded-full overflow-hidden mb-1">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
                             tp.status === "done" ? "bg-green-500" : "bg-blue-500"
@@ -355,17 +355,17 @@ export default function Home() {
         )}
 
         {error && (
-          <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 text-red-300 mb-6">
+          <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700 mb-6">
             Error: {error}
           </div>
         )}
 
         {data && (
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-zinc-900 border-b border-zinc-800">
-                  <th className="text-left p-3 font-medium text-zinc-300 sticky left-0 bg-zinc-900 min-w-[50px]">
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left p-3 font-medium text-gray-700 sticky left-0 bg-gray-50 min-w-[50px]">
                     #
                   </th>
                   <SortHeader
@@ -392,16 +392,16 @@ export default function Home() {
                 {sortedHolders.map((holder, i) => (
                   <tr
                     key={holder.address}
-                    className={`border-b border-zinc-800/50 hover:bg-zinc-900/50 ${
-                      i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/20"
+                    className={`border-b border-gray-100 hover:bg-blue-50/50 ${
+                      i % 2 === 0 ? "bg-white" : "bg-gray-50"
                     }`}
                   >
-                    <td className="p-3 sticky left-0 bg-inherit text-zinc-500">
+                    <td className={`p-3 sticky left-0 text-gray-400 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
                       {i + 1}
                     </td>
                     <td className="p-3">
                       {holder.label && (
-                        <div className="text-zinc-200 text-xs font-medium mb-0.5">
+                        <div className="text-gray-900 text-xs font-medium mb-0.5">
                           {holder.label}
                         </div>
                       )}
@@ -409,7 +409,7 @@ export default function Home() {
                         href={`https://voyager.online/contract/${holder.address}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-mono text-xs text-blue-400 hover:text-blue-300 hover:underline"
+                        className="font-mono text-xs text-[#2C41F6] hover:text-[#1f2fdb] hover:underline"
                       >
                         {shortenAddress(holder.address)}
                       </a>
@@ -417,7 +417,7 @@ export default function Home() {
                     {TOKEN_ORDER.map((symbol) => (
                       <td
                         key={symbol}
-                        className="text-right p-3 font-mono text-zinc-300"
+                        className="text-right p-3 font-mono text-gray-700"
                       >
                         {holder.balances[symbol] ?? "-"}
                       </td>
@@ -425,33 +425,33 @@ export default function Home() {
                   </tr>
                 ))}
 
-                <tr className="border-b border-zinc-800 bg-zinc-900/40">
+                <tr className="border-b border-gray-200 bg-gray-100">
                   <td
-                    className="p-3 sticky left-0 bg-zinc-900/40"
+                    className="p-3 sticky left-0 bg-gray-100"
                     colSpan={2}
                   >
-                    <span className="font-medium text-zinc-400 italic">
+                    <span className="font-medium text-gray-500 italic">
                       Others
                     </span>
                   </td>
                   {TOKEN_ORDER.map((symbol) => (
                     <td
                       key={symbol}
-                      className="text-right p-3 font-mono text-zinc-400"
+                      className="text-right p-3 font-mono text-gray-500"
                     >
                       {data.others[symbol] ?? "-"}
                     </td>
                   ))}
                 </tr>
 
-                <tr className="bg-zinc-900 font-medium">
-                  <td className="p-3 sticky left-0 bg-zinc-900" colSpan={2}>
-                    <span className="text-zinc-200">Total Supply</span>
+                <tr className="bg-gray-50 font-medium">
+                  <td className="p-3 sticky left-0 bg-gray-50" colSpan={2}>
+                    <span className="text-gray-900">Total Supply</span>
                   </td>
                   {TOKEN_ORDER.map((symbol) => (
                     <td
                       key={symbol}
-                      className="text-right p-3 font-mono text-zinc-200"
+                      className="text-right p-3 font-mono text-gray-900"
                     >
                       {data.totalSupply[symbol] ?? "-"}
                     </td>

@@ -29,10 +29,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
-        <header className="border-b border-zinc-800">
+      <body className="min-h-full flex flex-col bg-gray-50 text-gray-800">
+        <header className="border-b border-gray-200 bg-white">
           <div className="max-w-[1400px] mx-auto px-8 py-4 flex items-center justify-between">
-            <Link href="/" className="text-lg font-bold tracking-tight hover:text-zinc-300 transition-colors">
+            <Link href="/" className="text-lg font-semibold tracking-tight text-gray-900 hover:text-[#2C41F6] transition-colors">
               Vesu Analytics
             </Link>
             <Nav />

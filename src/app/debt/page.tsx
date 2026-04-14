@@ -98,7 +98,7 @@ function SortHeader({
   const active = currentKey === sortKey;
   return (
     <th
-      className={`p-3 font-medium text-zinc-300 cursor-pointer select-none hover:text-zinc-100 ${
+      className={`p-3 font-medium text-gray-700 cursor-pointer select-none hover:text-gray-900 ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}
@@ -249,10 +249,10 @@ export default function DebtPage() {
       <div className="max-w-[1400px] mx-auto">
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-1">Debt & Caps</h2>
-          <p className="text-zinc-400 text-sm">
+          <p className="text-gray-500 text-sm">
             Total debt and debt caps per lending pair across active Vesu pools
             {!loading && (
-              <span className="text-zinc-500">
+              <span className="text-gray-400">
                 {" "}&middot; {sorted.length} of {rows.length} pairs
               </span>
             )}
@@ -265,7 +265,7 @@ export default function DebtPage() {
             <select
               value={poolFilter}
               onChange={(e) => setPoolFilter(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="all">All pools</option>
               {pools.map((p) => (
@@ -275,7 +275,7 @@ export default function DebtPage() {
             <select
               value={assetFilter}
               onChange={(e) => setAssetFilter(e.target.value)}
-              className="bg-zinc-800 border border-zinc-700 rounded-md px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-white border border-gray-300 rounded-md px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="all">All assets</option>
               {assets.map((a) => (
@@ -286,7 +286,7 @@ export default function DebtPage() {
         )}
 
         {loading && (
-          <div className="flex items-center gap-3 text-zinc-400">
+          <div className="flex items-center gap-3 text-gray-500">
             <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -296,19 +296,19 @@ export default function DebtPage() {
         )}
 
         {error && (
-          <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 text-red-300">
+          <div className="bg-red-50 border border-red-300 rounded-lg p-4 text-red-700">
             Error: {error}
           </div>
         )}
 
         {!loading && !error && (
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-zinc-900 border-b border-zinc-800">
+                <tr className="bg-gray-50 border-b border-gray-200">
                   <SortHeader label="Pool" sortKey="pool" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                   <SortHeader label="Pair" sortKey="pair" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
-                  <th className="text-right p-3 font-medium text-zinc-300">Total Debt</th>
+                  <th className="text-right p-3 font-medium text-gray-700">Total Debt</th>
                   <SortHeader label="Debt (USD)" sortKey="totalDebtUsd" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   <SortHeader label="Debt Cap" sortKey="debtCap" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   <SortHeader label="Cap Usage" sortKey="utilization" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
@@ -319,11 +319,11 @@ export default function DebtPage() {
                 {sorted.map((row, i) => (
                   <tr
                     key={`${row.poolId}-${row.collateralSymbol}-${row.debtSymbol}`}
-                    className={`border-b border-zinc-800/50 hover:bg-zinc-900/50 ${
-                      i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/20"
+                    className={`border-b border-gray-100 hover:bg-blue-50/50 ${
+                      i % 2 === 0 ? "bg-white" : "bg-gray-50"
                     }`}
                   >
-                    <td className="p-3 text-zinc-400">{row.poolName}</td>
+                    <td className="p-3 text-gray-500">{row.poolName}</td>
                     <td className="p-3">
                       <a
                         href={`https://vesu.xyz/lend/${row.poolId}`}
@@ -331,23 +331,23 @@ export default function DebtPage() {
                         rel="noopener noreferrer"
                         className="hover:underline"
                       >
-                        <span className="text-zinc-200">{row.collateralSymbol}</span>
-                        <span className="text-zinc-500 mx-1">/</span>
-                        <span className="text-zinc-300">{row.debtSymbol}</span>
+                        <span className="text-gray-900">{row.collateralSymbol}</span>
+                        <span className="text-gray-400 mx-1">/</span>
+                        <span className="text-gray-700">{row.debtSymbol}</span>
                       </a>
                     </td>
-                    <td className="text-right p-3 font-mono text-zinc-300">
+                    <td className="text-right p-3 font-mono text-gray-700">
                       {row.totalDebt}
                     </td>
-                    <td className="text-right p-3 font-mono text-zinc-300">
+                    <td className="text-right p-3 font-mono text-gray-700">
                       {row.totalDebtUsd}
                     </td>
-                    <td className="text-right p-3 font-mono text-zinc-400">
+                    <td className="text-right p-3 font-mono text-gray-500">
                       {row.debtCap}
                     </td>
                     <td className="text-right p-3">
                       <div className="flex items-center justify-end gap-2">
-                        <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full ${
                               row.utilization > 90
@@ -359,19 +359,19 @@ export default function DebtPage() {
                             style={{ width: `${Math.min(row.utilization, 100)}%` }}
                           />
                         </div>
-                        <span className="font-mono text-zinc-400 w-12 text-right">
+                        <span className="font-mono text-gray-500 w-12 text-right">
                           {row.utilization.toFixed(1)}%
                         </span>
                       </div>
                     </td>
-                    <td className="text-right p-3 font-mono text-zinc-400">
+                    <td className="text-right p-3 font-mono text-gray-500">
                       {row.maxLTV.toFixed(1)}%
                     </td>
                   </tr>
                 ))}
                 {sorted.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-zinc-500">
+                    <td colSpan={7} className="p-6 text-center text-gray-400">
                       No active lending pairs found
                     </td>
                   </tr>
