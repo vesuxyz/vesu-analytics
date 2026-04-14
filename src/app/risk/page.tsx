@@ -209,7 +209,7 @@ function CombinedRiskChart({
       drop: `-${b.dropPct}%`,
       risk: isUsd ? b.debtAtRiskUsd : b.positionsAtRisk,
     };
-    if (isUsd) {
+    if (isUsd && liqData !== undefined) {
       row.liquidity = liqData ? interpolateVolume(liqData.points, b.dropPct) : 0;
     }
     return row;
@@ -217,7 +217,7 @@ function CombinedRiskChart({
 
   const riskLabel = isUsd ? "Debt at Risk" : "Positions at Risk";
   const liqLabel = liqData ? `${liqData.symbol} Liquidity` : "Liquidity";
-  const showLiq = isUsd;
+  const showLiq = isUsd && liqData !== undefined;
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
@@ -556,7 +556,7 @@ export default function RiskPage() {
                       <CombinedRiskChart
                         buckets={c.buckets}
                         metric={riskMetric}
-                        liqData={liqData}
+                        liqData={liqData ?? null}
                         title={c.pair}
                         color={pairColor}
                       />
