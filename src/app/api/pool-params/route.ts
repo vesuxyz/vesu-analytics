@@ -72,13 +72,149 @@ function selectorFromName(name: string): string {
     asset_config: "0x40a1db21c93dd4b0a09e752c7b8cc7db2b84275621c8d2941edd851a22b56f",
     interest_rate_config: "0x3445eeebf08ef8f8e08e1f00ff9a3dfc7bee1ce543734f5bc93d18b7a29ddd8",
     pair_config: "0x171c2fae45c0df09f8253d0a3bdf9756051f8fa442f4349827736d3e3135c06",
+    shutdown_status: "0x36d02ad371c8a01c1f288dedafc7ae66d676b2d213c71754a1e92f023de4835",
+    v_token_for_collateral_asset: "0x3ee28cd35b58271a6de956929d6e0e1eeb9f74099bab524a502ff3e9e095cb2",
+    asset_config_unsafe: "0x80ca3e9920a8cd3435b3652f2a12b8f45ec4850ae06783f157757ab3296eb2",
+    ltv_config: "0x239af5fa5cb958318bb362bbfdeb62ba623b36dbb081b6daa1b65564abc7b43",
+    debt_caps: "0x393e1ce579fae75f99930ca1e96837f730c6109117abd2b9164ca0016af6437",
+    liquidation_config: "0x3c63b4c7078b43eb9d0258a6a7476707f5747012b2fc535fba05a63b75754ce",
   };
   return selectors[name] ?? "0x0";
+}
+
+const SHUTDOWN_MODES = ["None", "Recovery", "Subscription", "Redemption"];
+
+async function handleV1(rpcUrl: string, poolId: string) {
+  const poolRes = await fetch(`https://api.vesu.xyz/pools/${poolId}`, { cache: "no-store" });
+  if (!poolRes.ok) throw new Error(`Vesu API returned ${poolRes.status}`);
+  const pool = (await poolRes.json()).data;
+
+  const extensionAddress = pool.extensionContractAddress;
+  const singletonAddress = pool.singletonContractAddress;
+  if (!extensionAddress || !singletonAddress) throw new Error("Missing extension or singleton contract");
+
+  const assets: { address: string; symbol: string; decimals: number }[] = pool.assets ?? [];
+  const pairs: { collateralAssetAddress: string; debtAssetAddress: string }[] = pool.pairs ?? [];
+
+  const calls: RpcCall[] = [];
+
+  // Asset configs: asset_config_unsafe on singleton + interest_rate_config on extension (2 per asset)
+  for (const asset of assets) {
+    calls.push({
+      contractAddress: singletonAddress,
+      entrypoint: "asset_config_unsafe",
+      calldata: CallData.compile([poolId, asset.address]),
+    });
+    calls.push({
+      contractAddress: extensionAddress,
+      entrypoint: "interest_rate_config",
+      calldata: CallData.compile([poolId, asset.address]),
+    });
+  }
+  const assetCallCount = assets.length * 2;
+
+  // Pair configs: ltv_config on singleton + debt_caps on extension + liquidation_config on extension + shutdown_status on extension (4 per pair)
+  for (const pair of pairs) {
+    const cd = CallData.compile([poolId, pair.collateralAssetAddress, pair.debtAssetAddress]);
+    calls.push({ contractAddress: singletonAddress, entrypoint: "ltv_config", calldata: cd });
+    calls.push({ contractAddress: extensionAddress, entrypoint: "debt_caps", calldata: cd });
+    calls.push({ contractAddress: extensionAddress, entrypoint: "liquidation_config", calldata: cd });
+    calls.push({ contractAddress: extensionAddress, entrypoint: "shutdown_status", calldata: cd });
+  }
+  const pairCallCount = pairs.length * 4;
+
+  // vToken: v_token_for_collateral_asset + shutdown_status(collateral, 0x0) (2 per asset)
+  const vtokenOffset = assetCallCount + pairCallCount;
+  for (const asset of assets) {
+    calls.push({
+      contractAddress: extensionAddress,
+      entrypoint: "v_token_for_collateral_asset",
+      calldata: CallData.compile([poolId, asset.address]),
+    });
+    calls.push({
+      contractAddress: extensionAddress,
+      entrypoint: "shutdown_status",
+      calldata: CallData.compile([poolId, asset.address, "0x0"]),
+    });
+  }
+
+  const results = calls.length > 0 ? await batchCall(rpcUrl, calls) : [];
+
+  // Parse asset configs
+  const assetConfigs = assets.map((asset, i) => ({
+    symbol: asset.symbol,
+    address: normalizeAddress(asset.address),
+    decimals: asset.decimals,
+    assetConfig: results[i * 2],
+    interestRateConfig: results[i * 2 + 1],
+  }));
+
+  // Parse pair configs
+  const pairConfigs = pairs.map((pair, i) => {
+    const collateral = assets.find(
+      (a) => normalizeAddress(a.address) === normalizeAddress(pair.collateralAssetAddress)
+    );
+    const debt = assets.find(
+      (a) => normalizeAddress(a.address) === normalizeAddress(pair.debtAssetAddress)
+    );
+    const base = assetCallCount + i * 4;
+    const ltvResult = results[base];
+    const debtCapResult = results[base + 1];
+    const liqResult = results[base + 2];
+    const shutdownResult = results[base + 3];
+    const modeIdx = shutdownResult ? Number(BigInt(shutdownResult[0])) : 0;
+    return {
+      collateralSymbol: collateral?.symbol ?? "?",
+      debtSymbol: debt?.symbol ?? "?",
+      collateralAddress: normalizeAddress(pair.collateralAssetAddress),
+      debtAddress: normalizeAddress(pair.debtAssetAddress),
+      config: [
+        ltvResult?.[0] ?? "0x0",
+        liqResult?.[0] ?? "0x0",
+        debtCapResult?.[0] ?? "0x0",
+      ],
+      shutdownMode: SHUTDOWN_MODES[modeIdx] ?? "Unknown",
+      violating: shutdownResult ? BigInt(shutdownResult[1]) > 0n : false,
+      isVToken: false,
+    };
+  });
+
+  // vToken pairs
+  const vtokenPairs = assets
+    .map((asset, i) => {
+      const vtokenResult = results[vtokenOffset + i * 2];
+      const shutdownResult = results[vtokenOffset + i * 2 + 1];
+      const vtokenAddr = vtokenResult?.[0];
+      if (!vtokenAddr || BigInt(vtokenAddr) === 0n) return null;
+      const modeIdx = shutdownResult ? Number(BigInt(shutdownResult[0])) : 0;
+      return {
+        collateralSymbol: asset.symbol,
+        debtSymbol: "vToken",
+        collateralAddress: normalizeAddress(asset.address),
+        debtAddress: "0x0",
+        vTokenAddress: normalizeAddress(vtokenAddr),
+        config: null,
+        shutdownMode: SHUTDOWN_MODES[modeIdx] ?? "Unknown",
+        violating: shutdownResult ? BigInt(shutdownResult[1]) > 0n : false,
+        isVToken: true,
+      };
+    })
+    .filter(Boolean);
+
+  const general = {
+    singletonContract: singletonAddress,
+    extensionContract: extensionAddress,
+  };
+
+  return NextResponse.json({
+    data: { general, assets: assetConfigs, pairs: [...pairConfigs, ...vtokenPairs] },
+  });
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const poolId = searchParams.get("poolId");
+  const version = searchParams.get("version");
 
   if (!poolId) {
     return NextResponse.json({ error: "poolId required" }, { status: 400 });
@@ -89,9 +225,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "ALCHEMY_RPC_URL not set" }, { status: 500 });
   }
 
-  const poolAddress = poolId;
-
   try {
+    if (version === "v1") {
+      return await handleV1(rpcUrl, poolId);
+    }
+
+    const poolAddress = poolId;
+
     // Fetch pool data for asset/pair lists
     const poolRes = await fetch(`https://api.vesu.xyz/pools/${poolId}`, { cache: "no-store" });
     if (!poolRes.ok) throw new Error(`Vesu API returned ${poolRes.status}`);

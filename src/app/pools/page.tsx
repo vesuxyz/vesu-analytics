@@ -20,13 +20,35 @@ interface PoolAsset {
   };
 }
 
+interface ShutdownConfig {
+  recoveryPeriod?: number;
+  subscriptionPeriod?: number;
+}
+
+interface PairShutdownConfig {
+  maxLTV?: DecimalValue;
+}
+
+interface PoolPair {
+  collateralAssetAddress: string;
+  debtAssetAddress: string;
+  maxLTV: DecimalValue;
+  debtCap: DecimalValue;
+  liquidationFactor: DecimalValue;
+  totalDebt: DecimalValue;
+  shutdownConfig: PairShutdownConfig | null;
+}
+
 interface Pool {
   id: string;
   name: string;
   isDeprecated: boolean;
   protocolVersion: string;
+  extensionContractAddress?: string;
+  singletonContractAddress?: string;
+  shutdownConfig: ShutdownConfig | null;
   assets: PoolAsset[];
-  pairs: unknown[];
+  pairs: PoolPair[];
 }
 
 interface AssetParams {
@@ -64,6 +86,10 @@ interface PairParams {
   maxLtv: string;
   liquidationFactor: string;
   debtCap: string;
+  shutdownMode?: string;
+  violating?: boolean;
+  isVToken?: boolean;
+  vTokenAddress?: string;
 }
 
 interface PoolParamsData {
@@ -199,7 +225,7 @@ function decodeIRConfig(raw: string[] | null): Partial<AssetParams> {
   };
 }
 
-function decodePairConfig(raw: string[] | null, debtDecimals: number): Omit<PairParams, "collateralSymbol" | "debtSymbol" | "collateralAddress" | "debtAddress"> | null {
+function decodePairConfig(raw: string[] | null, debtDecimals: number): { maxLtv: string; liquidationFactor: string; debtCap: string } | null {
   if (!raw || raw.length < 3) return null;
   return {
     maxLtv: withRaw(fmtPct18(BigInt(raw[0])), BigInt(raw[0])),
@@ -277,7 +303,14 @@ function PoolList({
                   i % 2 === 0 ? "bg-white" : "bg-gray-50"
                 }`}
               >
-                <td className="p-3 font-medium text-gray-900">{pool.name}</td>
+                <td className="p-3 font-medium text-gray-900">
+                  {pool.name}
+                  {pool.isDeprecated && (
+                    <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">
+                      Deprecated
+                    </span>
+                  )}
+                </td>
                 <td className="p-3">
                   <a
                     href={`https://voyager.online/contract/${pool.id}`}
@@ -321,6 +354,7 @@ function PoolDetail({
   loading: boolean;
   onBack: () => void;
 }) {
+  const isV1 = pool.protocolVersion === "v1";
   const [tab, setTab] = useState<Tab>("general");
   const [unscaled, setUnscaled] = useState(false);
 
@@ -340,7 +374,14 @@ function PoolDetail({
         &larr; Back to Pools
       </button>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-1">{pool.name}</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+        {pool.name}
+        {pool.isDeprecated && (
+          <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded align-middle">
+            Deprecated
+          </span>
+        )}
+      </h3>
       <p className="text-sm text-gray-500 mb-4">
         <a
           href={`https://voyager.online/contract/${pool.id}`}
@@ -403,7 +444,7 @@ function PoolDetail({
         <ParamsTable columns={IR_COLUMNS} rows={params.assets} poolAddress={pool.id} entrypoint="interest_rate_config" unscaled={unscaled} />
       )}
       {!loading && params && tab === "pairs" && (
-        <PairsTable pairs={params.pairs} poolAddress={pool.id} unscaled={unscaled} />
+        <PairsTable pairs={params.pairs} poolAddress={pool.id} unscaled={unscaled} isV1={isV1} />
       )}
     </div>
   );
@@ -529,7 +570,8 @@ function ParamsTable({
   );
 }
 
-function PairsTable({ pairs, poolAddress, unscaled }: { pairs: PairParams[]; poolAddress: string; unscaled: boolean }) {
+function PairsTable({ pairs, poolAddress, unscaled, isV1 }: { pairs: PairParams[]; poolAddress: string; unscaled: boolean; isV1?: boolean }) {
+  const hasShutdown = isV1 && pairs.some((p) => p.shutdownMode);
   return (
     <div className="overflow-x-auto rounded-lg border border-gray-200">
       <table className="w-full text-sm">
@@ -545,6 +587,9 @@ function PairsTable({ pairs, poolAddress, unscaled }: { pairs: PairParams[]; poo
                 {col.label}
               </th>
             ))}
+            {hasShutdown && (
+              <th className="p-3 font-medium text-gray-700 whitespace-nowrap text-right">Shutdown</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -556,14 +601,37 @@ function PairsTable({ pairs, poolAddress, unscaled }: { pairs: PairParams[]; poo
               }`}
             >
               <td className="p-3 font-medium text-gray-700">
-                <span className="flex items-center">
-                  {pair.collateralSymbol} / {pair.debtSymbol}
-                  <WalnutLink href={walnutUrl(poolAddress, "pair_config", [pair.collateralAddress, pair.debtAddress])} />
+                <span className="flex items-center gap-1.5">
+                  {pair.isVToken ? (
+                    <>
+                      <span className="text-gray-900">{pair.collateralSymbol}</span>
+                      <span className="text-gray-400">/</span>
+                      <a
+                        href={`https://voyager.online/contract/${pair.vTokenAddress}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#2C41F6] hover:underline text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        vToken
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      {pair.collateralSymbol} / {pair.debtSymbol}
+                      {!isV1 && <WalnutLink href={walnutUrl(poolAddress, "pair_config", [pair.collateralAddress, pair.debtAddress])} />}
+                    </>
+                  )}
                 </span>
               </td>
               <td className="p-3 font-mono text-gray-700 text-right">{getDisplay(pair.maxLtv, unscaled)}</td>
               <td className="p-3 font-mono text-gray-700 text-right">{getDisplay(pair.liquidationFactor, unscaled)}</td>
               <td className="p-3 font-mono text-gray-700 text-right">{getDisplay(pair.debtCap, unscaled)}</td>
+              {hasShutdown && (
+                <td className="p-3 text-right">
+                  <ShutdownBadge mode={pair.shutdownMode} violating={pair.violating} />
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -572,8 +640,32 @@ function PairsTable({ pairs, poolAddress, unscaled }: { pairs: PairParams[]; poo
   );
 }
 
+function ShutdownBadge({ mode, violating }: { mode?: string; violating?: boolean }) {
+  if (!mode || mode === "None") {
+    return <span className="text-gray-400 text-xs">None</span>;
+  }
+  const colors: Record<string, string> = {
+    Recovery: "bg-amber-100 text-amber-700",
+    Subscription: "bg-orange-100 text-orange-700",
+    Redemption: "bg-red-100 text-red-700",
+  };
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${colors[mode] ?? "bg-gray-100 text-gray-600"}`}>
+        {mode}
+      </span>
+      {violating && (
+        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-red-100 text-red-600">
+          Violating
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default function PoolsPage() {
   const { data: poolsData, loading, error } = useCachedFetch<Pool[]>("pools", "/api/pools");
+  const [version, setVersion] = useState<"v1" | "v2">("v2");
   const [selectedPool, setSelectedPool] = useState<Pool | null>(null);
   const [poolParams, setPoolParams] = useState<PoolParamsData | null>(null);
   const [paramsLoading, setParamsLoading] = useState(false);
@@ -582,7 +674,7 @@ export default function PoolsPage() {
   const pools = useMemo(() => {
     if (!poolsData) return [];
     return poolsData
-      .filter((p) => p.protocolVersion === "v2" && !p.isDeprecated)
+      .filter((p) => p.protocolVersion === version && (version === "v1" || !p.isDeprecated))
       .sort((a, b) => {
         const tvlA = a.assets.reduce(
           (s, asset) =>
@@ -596,13 +688,98 @@ export default function PoolsPage() {
         );
         return tvlB - tvlA;
       });
-  }, [poolsData]);
+  }, [poolsData, version]);
 
   const selectPool = useCallback((pool: Pool) => {
     setSelectedPool(pool);
     setPoolParams(null);
     setParamsLoading(true);
     setParamsError(null);
+
+    if (pool.protocolVersion === "v1") {
+      fetch(`/api/pool-params?poolId=${pool.id}&version=v1`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((json) => {
+          const raw = json.data;
+
+          const assets: AssetParams[] = raw.assets.map(
+            (a: { symbol: string; address: string; decimals: number; assetConfig: string[] | null; interestRateConfig: string[] | null }) => ({
+              symbol: a.symbol,
+              address: a.address,
+              ...decodeAssetConfig(a.assetConfig, a.decimals),
+              ...decodeIRConfig(a.interestRateConfig),
+            })
+          );
+
+          const decimalsMap = new Map<string, number>();
+          for (const a of raw.assets) {
+            decimalsMap.set(a.address, a.decimals);
+          }
+
+          interface V1PairRaw {
+            collateralSymbol: string;
+            debtSymbol: string;
+            collateralAddress: string;
+            debtAddress: string;
+            config: string[] | null;
+            shutdownMode: string;
+            violating: boolean;
+            isVToken: boolean;
+            vTokenAddress?: string;
+          }
+
+          const lendingPairs: PairParams[] = (raw.pairs as V1PairRaw[])
+            .filter((p) => !p.isVToken)
+            .map((p) => {
+              const decoded = decodePairConfig(p.config, decimalsMap.get(p.debtAddress) ?? 18);
+              return {
+                collateralSymbol: p.collateralSymbol,
+                debtSymbol: p.debtSymbol,
+                collateralAddress: p.collateralAddress,
+                debtAddress: p.debtAddress,
+                maxLtv: decoded?.maxLtv ?? "-",
+                liquidationFactor: decoded?.liquidationFactor ?? "-",
+                debtCap: decoded?.debtCap ?? "-",
+                shutdownMode: p.shutdownMode,
+                violating: p.violating,
+              };
+            });
+
+          const vtokenPairs: PairParams[] = (raw.pairs as V1PairRaw[])
+            .filter((p) => p.isVToken)
+            .map((p) => ({
+              collateralSymbol: p.collateralSymbol,
+              debtSymbol: "vToken",
+              collateralAddress: p.collateralAddress,
+              debtAddress: "0x0",
+              maxLtv: "100.00%",
+              liquidationFactor: "-",
+              debtCap: "-",
+              shutdownMode: p.shutdownMode,
+              violating: p.violating,
+              isVToken: true,
+              vTokenAddress: p.vTokenAddress,
+            }));
+
+          const general: Record<string, string | null> = raw.general;
+          if (pool.shutdownConfig) {
+            general.recoveryPeriod = pool.shutdownConfig.recoveryPeriod != null
+              ? fmtSeconds(BigInt(pool.shutdownConfig.recoveryPeriod))
+              : "-";
+            general.subscriptionPeriod = pool.shutdownConfig.subscriptionPeriod != null
+              ? fmtSeconds(BigInt(pool.shutdownConfig.subscriptionPeriod))
+              : "-";
+          }
+
+          setPoolParams({ general, assets, pairs: [...lendingPairs, ...vtokenPairs] });
+        })
+        .catch((err) => setParamsError(err.message))
+        .finally(() => setParamsLoading(false));
+      return;
+    }
 
     fetch(`/api/pool-params?poolId=${pool.id}`)
       .then((r) => {
@@ -612,7 +789,6 @@ export default function PoolsPage() {
       .then((json) => {
         const raw = json.data;
 
-        // Decode assets
         const assets: AssetParams[] = raw.assets.map(
           (a: { symbol: string; address: string; decimals: number; assetConfig: string[] | null; interestRateConfig: string[] | null }) => ({
             symbol: a.symbol,
@@ -622,13 +798,11 @@ export default function PoolsPage() {
           })
         );
 
-        // Build decimals lookup from assets
         const decimalsMap = new Map<string, number>();
         for (const a of raw.assets) {
           decimalsMap.set(a.address, a.decimals);
         }
 
-        // Decode pairs
         const pairs: PairParams[] = raw.pairs.map(
           (p: { collateralSymbol: string; debtSymbol: string; collateralAddress: string; debtAddress: string; config: string[] | null }) => ({
             collateralSymbol: p.collateralSymbol,
@@ -650,16 +824,40 @@ export default function PoolsPage() {
       <div className="max-w-[1400px] mx-auto">
         {!selectedPool && (
           <>
-            <div className="mb-6">
-              <h2 className="text-xl font-bold mb-1">Pool Parameters</h2>
-              <p className="text-gray-500 text-sm">
-                On-chain risk parameters for Vesu v2 lending pools
-                {!loading && (
-                  <span className="text-gray-400">
-                    {" "}&middot; {pools.length} pools
-                  </span>
-                )}
-              </p>
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-bold mb-1">Pool Parameters</h2>
+                <p className="text-gray-500 text-sm">
+                  {version === "v2" ? "On-chain risk parameters for Vesu v2 lending pools" : "Vesu v1 lending pools (deprecated)"}
+                  {!loading && (
+                    <span className="text-gray-400">
+                      {" "}&middot; {pools.length} pools
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="flex bg-gray-100 rounded-md p-0.5">
+                <button
+                  onClick={() => { setVersion("v1"); setSelectedPool(null); }}
+                  className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
+                    version === "v1"
+                      ? "bg-[#2C41F6] text-white"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  V1
+                </button>
+                <button
+                  onClick={() => { setVersion("v2"); setSelectedPool(null); }}
+                  className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
+                    version === "v2"
+                      ? "bg-[#2C41F6] text-white"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  V2
+                </button>
+              </div>
             </div>
 
             {loading && (
